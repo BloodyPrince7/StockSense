@@ -17,8 +17,12 @@ out/
 .env.production.local
 
 # Database
-prisma/dev.db
-prisma/dev.db-journal
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+server/prisma/dev.db
+server/prisma/dev.db-journal
 *.sqlite
 *.sqlite3
 
