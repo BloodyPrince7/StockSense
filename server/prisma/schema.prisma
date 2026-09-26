@@ -1,0 +1,139 @@
+// Prisma Schema for StockSense
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String    @default("INVENTORY_MANAGER") // INVENTORY_MANAGER, WAREHOUSE_STAFF
+  otpCode      String?
+  otpExpiresAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdDocuments OperationDocument[]
+  stockMoves       StockMove[]
+}
+
+model Warehouse {
+  id        String     @id @default(uuid())
+  name      String
+  code      String     @unique
+  address   String?
+  createdAt DateTime   @default(now())
+  locations Location[]
+}
+
+model Location {
+  id          String     @id @default(uuid())
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+  name        String
+  code        String     @unique
+  type        String     // INTERNAL, VENDOR, CUSTOMER, INVENTORY_LOSS
+  createdAt   DateTime   @default(now())
+
+  stockQuants     StockQuant[]
+  sourceMoves     StockMove[]         @relation("SourceLocationMoves")
+  destMoves       StockMove[]         @relation("DestLocationMoves")
+  sourceDocuments OperationDocument[] @relation("SourceLocationDocs")
+  destDocuments   OperationDocument[] @relation("DestLocationDocs")
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+}
+
+model Product {
+  id                String   @id @default(uuid())
+  name              String
+  sku               String   @unique
+  categoryId        String
+  category          Category @relation(fields: [categoryId], references: [id])
+  uom               String   @default("Units") // kg, Units, Boxes, Meters, Liters
+  costPrice         Float    @default(0.0)
+  minStockThreshold Float    @default(10.0)
+  reorderQty        Float    @default(50.0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  stockQuants    StockQuant[]
+  operationItems OperationItem[]
+  stockMoves     StockMove[]
+}
+
+model StockQuant {
+  id               String   @id @default(uuid())
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id])
+  locationId       String
+  location         Location @relation(fields: [locationId], references: [id])
+  quantity         Float    @default(0.0)
+  reservedQuantity Float    @default(0.0)
+  updatedAt        DateTime @updatedAt
+
+  @@unique([productId, locationId])
+}
+
+model OperationDocument {
+  id               String    @id @default(uuid())
+  reference        String    @unique // REC-2026-0001, DEL-2026-0001, INT-2026-0001, ADJ-2026-0001
+  type             String    // RECEIPT, DELIVERY, INTERNAL, ADJUSTMENT
+  status           String    @default("DRAFT") // DRAFT, WAITING, READY, DONE, CANCELED
+  partnerName      String?   // Supplier for Receipts, Customer for Deliveries
+  sourceLocationId String?
+  sourceLocation   Location? @relation("SourceLocationDocs", fields: [sourceLocationId], references: [id])
+  destLocationId   String?
+  destLocation     Location? @relation("DestLocationDocs", fields: [destLocationId], references: [id])
+  scheduledDate    DateTime  @default(now())
+  validatedAt      DateTime?
+  createdById      String
+  createdBy        User      @relation(fields: [createdById], references: [id])
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  items      OperationItem[]
+  stockMoves StockMove[]
+}
+
+model OperationItem {
+  id           String            @id @default(uuid())
+  documentId   String
+  document     OperationDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id])
+  requestedQty Float
+  pickedQty    Float             @default(0.0)
+  packedQty    Float             @default(0.0)
+  doneQty      Float             @default(0.0)
+}
+
+model StockMove {
+  id               String             @id @default(uuid())
+  documentId       String?
+  document         OperationDocument? @relation(fields: [documentId], references: [id])
+  productId        String
+  product          Product            @relation(fields: [productId], references: [id])
+  sourceLocationId String
+  sourceLocation   Location           @relation("SourceLocationMoves", fields: [sourceLocationId], references: [id])
+  destLocationId   String
+  destLocation     Location           @relation("DestLocationMoves", fields: [destLocationId], references: [id])
+  quantity         Float
+  timestamp        DateTime           @default(now())
+  userId           String?
+  user             User?              @relation(fields: [userId], references: [id])
+  notes            String?
+}
