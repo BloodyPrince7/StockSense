@@ -6,6 +6,7 @@ import {
   Truck,
   Ban,
   ArrowRight,
+  Printer,
   Clock,
   User as UserIcon,
   MapPin,
@@ -61,6 +62,10 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
@@ -88,12 +93,12 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in print:p-0 print:bg-white">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden max-h-[92vh] flex flex-col print:max-h-full print:shadow-none print:border-none">
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between flex-shrink-0">
+        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between flex-shrink-0 print:bg-purple-900">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-base font-bold tracking-tight text-purple-300">
+            <span className="font-mono text-base font-bold tracking-tight text-purple-300 print:text-white">
               {doc.reference}
             </span>
             <span className={`text-[11px] font-semibold uppercase px-2.5 py-0.5 rounded-full border ${getStatusColor(doc.status)}`}>
@@ -102,14 +107,14 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white rounded-lg p-1 transition-colors"
+            className="text-slate-400 hover:text-white rounded-lg p-1 transition-colors print:hidden"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Action Header Bar */}
-        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+        {/* Action Header Bar (matches Architecture Wireframe: Validate, Print, Cancel) */}
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 flex-shrink-0 print:hidden">
           <div className="flex items-center gap-2">
             {doc.status !== 'DONE' && doc.status !== 'CANCELED' && (
               <>
@@ -146,9 +151,9 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>
                       {doc.type === 'DELIVERY'
-                        ? 'Step 3: Validate & Ship'
+                        ? 'Validate & Ship'
                         : doc.type === 'RECEIPT'
-                        ? 'Validate Receipt'
+                        ? 'Validate'
                         : doc.type === 'INTERNAL'
                         ? 'Validate Transfer'
                         : 'Validate Adjustment'}
@@ -166,16 +171,34 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
                 </button>
               </>
             )}
+
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 shadow-2xs transition-colors"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-500" />
+              <span>Print Slip</span>
+            </button>
           </div>
 
-          {/* Workflow Status Steps Indicator */}
+          {/* Workflow Status Steps Indicator (Draft -> Ready -> Done) */}
           <div className="flex items-center text-xs font-medium text-slate-500 gap-1.5">
             <span className={doc.status === 'DRAFT' ? 'text-purple-700 font-bold' : ''}>Draft</span>
             <ArrowRight className="w-3 h-3 text-slate-300" />
-            <span className={doc.status === 'WAITING' ? 'text-amber-700 font-bold' : ''}>Picked</span>
-            <ArrowRight className="w-3 h-3 text-slate-300" />
-            <span className={doc.status === 'READY' ? 'text-blue-700 font-bold' : ''}>Packed</span>
-            <ArrowRight className="w-3 h-3 text-slate-300" />
+            {doc.type === 'DELIVERY' && (
+              <>
+                <span className={doc.status === 'WAITING' ? 'text-amber-700 font-bold' : ''}>Picked</span>
+                <ArrowRight className="w-3 h-3 text-slate-300" />
+                <span className={doc.status === 'READY' ? 'text-blue-700 font-bold' : ''}>Packed</span>
+                <ArrowRight className="w-3 h-3 text-slate-300" />
+              </>
+            )}
+            {doc.type !== 'DELIVERY' && (
+              <>
+                <span className={doc.status === 'READY' ? 'text-blue-700 font-bold' : ''}>Ready</span>
+                <ArrowRight className="w-3 h-3 text-slate-300" />
+              </>
+            )}
             <span className={doc.status === 'DONE' ? 'text-emerald-700 font-bold' : ''}>Done</span>
           </div>
         </div>
@@ -183,14 +206,14 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-5 flex-1">
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium print:hidden">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium print:hidden">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -212,7 +235,7 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-slate-400 mb-1">
                 <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                <span>Source Location</span>
+                <span>{doc.type === 'RECEIPT' ? 'Receive From' : 'Source Location'}</span>
               </div>
               <p className="text-xs font-bold text-slate-800 truncate">{doc.sourceLocation?.name}</p>
               <p className="text-[11px] text-slate-500 font-mono">{doc.sourceLocation?.code}</p>
@@ -221,7 +244,7 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-slate-400 mb-1">
                 <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Dest Location</span>
+                <span>{doc.type === 'DELIVERY' ? 'Delivery Address' : 'Destination Location'}</span>
               </div>
               <p className="text-xs font-bold text-slate-800 truncate">{doc.destLocation?.name}</p>
               <p className="text-[11px] text-slate-500 font-mono">{doc.destLocation?.code}</p>
@@ -230,7 +253,7 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase text-slate-400 mb-1">
                 <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                <span>Scheduled / Done</span>
+                <span>Scheduled / Validated</span>
               </div>
               <p className="text-xs font-bold text-slate-800">
                 {new Date(doc.scheduledDate).toLocaleDateString()}
@@ -300,8 +323,8 @@ const OperationDetailModal: React.FC<Props> = ({ operationId, onClose, onRefresh
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className="font-bold text-emerald-700">
-                        {m.quantity} {m.product?.uom}
+                      <span className="font-bold text-emerald-700 font-mono">
+                        +{m.quantity} {m.product?.uom}
                       </span>
                       <p className="text-[10px] text-slate-400">
                         {new Date(m.timestamp).toLocaleTimeString()}

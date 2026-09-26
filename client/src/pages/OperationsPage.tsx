@@ -13,9 +13,10 @@ import {
   Clock,
   MapPin,
   Calendar,
+  List,
+  LayoutGrid,
 } from 'lucide-react';
 import api from '../services/api';
-import Header from '../components/Header';
 import NewOperationModal from '../components/NewOperationModal';
 import OperationDetailModal from '../components/OperationDetailModal';
 import { OperationDocument, OperationType, Product, Location, Warehouse } from '../types';
@@ -24,6 +25,7 @@ const OperationsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentType = (searchParams.get('type') as OperationType) || 'RECEIPT';
 
+  const [viewMode, setViewMode] = useState<'LIST' | 'KANBAN'>('LIST');
   const [operations, setOperations] = useState<OperationDocument[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -68,9 +70,9 @@ const OperationsPage: React.FC = () => {
       case 'DRAFT':
         return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">Draft</span>;
       case 'WAITING':
-        return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">Waiting (Picked)</span>;
+        return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">Waiting</span>;
       case 'READY':
-        return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">Ready (Packed)</span>;
+        return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">Ready</span>;
       case 'DONE':
         return <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">Done</span>;
       case 'CANCELED':
@@ -91,12 +93,54 @@ const OperationsPage: React.FC = () => {
   });
 
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
-      <Header
-        title="Stock Operations & Logistics"
-        subtitle="Manage incoming receipts, outgoing delivery orders, internal transfers & stock adjustments"
-        onNewOperation={() => setIsNewOpOpen(true)}
-      />
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+      {/* Top Action Control Panel matching Architecture Wireframe */}
+      <div className="h-12 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-10 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsNewOpOpen(true)}
+            className="px-3.5 py-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New</span>
+          </button>
+          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            {currentType === 'RECEIPT'
+              ? 'Receipts'
+              : currentType === 'DELIVERY'
+              ? 'Delivery Orders'
+              : currentType === 'INTERNAL'
+              ? 'Internal Transfers'
+              : 'Inventory Adjustments'}
+          </span>
+        </div>
+
+        {/* View Switcher: List View vs Kanban View */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+          <button
+            onClick={() => setViewMode('LIST')}
+            title="List View (Default)"
+            className={`p-1.5 rounded text-xs transition-colors ${
+              viewMode === 'LIST'
+                ? 'bg-white text-purple-700 shadow-xs font-bold'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <List className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('KANBAN')}
+            title="Kanban View"
+            className={`p-1.5 rounded text-xs transition-colors ${
+              viewMode === 'KANBAN'
+                ? 'bg-white text-purple-700 shadow-xs font-bold'
+                : 'text-slate-500 hover:text-slate-900'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
       <main className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Operation Type Switcher */}
@@ -188,85 +232,116 @@ const OperationsPage: React.FC = () => {
               <option value="DONE">Done (Validated)</option>
               <option value="CANCELED">Canceled</option>
             </select>
-
-            <button
-              onClick={() => setIsNewOpOpen(true)}
-              className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create {currentType}</span>
-            </button>
           </div>
         </div>
 
-        {/* Operations Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[11px] tracking-wider">
-                <th className="py-3 px-4">Reference</th>
-                <th className="py-3 px-3">Partner / Reason</th>
-                <th className="py-3 px-3">From Location</th>
-                <th className="py-3 px-3">To Location</th>
-                <th className="py-3 px-3">Scheduled / Validated</th>
-                <th className="py-3 px-3">Status</th>
-                <th className="py-3 px-4 text-right">View / Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredOps.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
-                    No {currentType.toLowerCase()} operations found.
-                  </td>
+        {/* LIST VIEW (Default in Mockup) */}
+        {viewMode === 'LIST' && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[11px] tracking-wider">
+                  <th className="py-3 px-4">Reference</th>
+                  <th className="py-3 px-3">From</th>
+                  <th className="py-3 px-3">To</th>
+                  <th className="py-3 px-3">Contact / Partner</th>
+                  <th className="py-3 px-3">Scheduled Date</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-4 text-right">Action</th>
                 </tr>
-              ) : (
-                filteredOps.map((op) => (
-                  <tr
-                    key={op.id}
-                    onClick={() => setSelectedOpId(op.id)}
-                    className="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                  >
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                      {op.reference}
-                    </td>
-                    <td className="py-3 px-3 font-semibold text-slate-800">
-                      {op.partnerName || op.notes || '—'}
-                    </td>
-                    <td className="py-3 px-3 text-slate-600">
-                      <span className="font-medium text-slate-700">{op.sourceLocation?.name}</span>
-                      <p className="text-[10px] font-mono text-slate-400">{op.sourceLocation?.code}</p>
-                    </td>
-                    <td className="py-3 px-3 text-slate-600">
-                      <span className="font-medium text-slate-700">{op.destLocation?.name}</span>
-                      <p className="text-[10px] font-mono text-slate-400">{op.destLocation?.code}</p>
-                    </td>
-                    <td className="py-3 px-3 text-slate-600">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-400" />
-                        <span>{new Date(op.scheduledDate).toLocaleDateString()}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      {getStatusBadge(op.status)}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedOpId(op.id);
-                        }}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-purple-700 hover:bg-purple-50 transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredOps.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                      No {currentType.toLowerCase()} operations found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredOps.map((op) => (
+                    <tr
+                      key={op.id}
+                      onClick={() => setSelectedOpId(op.id)}
+                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                    >
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        {op.reference}
+                      </td>
+                      <td className="py-3 px-3 text-slate-600">
+                        <span className="font-medium text-slate-700">{op.sourceLocation?.name}</span>
+                        <p className="text-[10px] font-mono text-slate-400">{op.sourceLocation?.code}</p>
+                      </td>
+                      <td className="py-3 px-3 text-slate-600">
+                        <span className="font-medium text-slate-700">{op.destLocation?.name}</span>
+                        <p className="text-[10px] font-mono text-slate-400">{op.destLocation?.code}</p>
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-800">
+                        {op.partnerName || '—'}
+                      </td>
+                      <td className="py-3 px-3 text-slate-600">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          <span>{new Date(op.scheduledDate).toLocaleDateString()}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        {getStatusBadge(op.status)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedOpId(op.id);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* KANBAN VIEW */}
+        {viewMode === 'KANBAN' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredOps.map((op) => (
+              <div
+                key={op.id}
+                onClick={() => setSelectedOpId(op.id)}
+                className="p-5 bg-white rounded-2xl border border-slate-200 hover:border-purple-300 shadow-sm hover:shadow-md cursor-pointer transition-all space-y-3"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <span className="font-mono font-bold text-sm text-purple-700">{op.reference}</span>
+                  {getStatusBadge(op.status)}
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  {op.partnerName && (
+                    <p className="font-semibold text-slate-800 truncate">{op.partnerName}</p>
+                  )}
+                  <p className="text-slate-500 text-[11px]">
+                    {op.sourceLocation?.name} → {op.destLocation?.name}
+                  </p>
+                  <p className="text-slate-400 text-[10px]">
+                    Scheduled: {new Date(op.scheduledDate).toLocaleDateString()}
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span>{op.items.length} item line{op.items.length > 1 ? 's' : ''}</span>
+                  <span className="text-purple-700 font-bold flex items-center gap-0.5">
+                    View <Eye className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Modals */}
