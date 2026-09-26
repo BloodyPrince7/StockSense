@@ -107,7 +107,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
 // Get single operation details
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const operation = await prisma.operationDocument.findUnique({
       where: { id },
       include: {
@@ -186,7 +186,6 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
     if (type === 'RECEIPT') {
       if (!finalSourceLocId) finalSourceLocId = vendorLoc.id;
       if (!finalDestLocId) {
-        // default to first internal location
         const defaultLoc = await prisma.location.findFirst({ where: { type: 'INTERNAL' } });
         finalDestLocId = defaultLoc?.id;
       }
@@ -249,8 +248,8 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
 // Update items/quantities in an operation
 router.put('/:id/items', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    const { items } = req.body; // array of { id, pickedQty, packedQty, doneQty }
+    const id = String(req.params.id);
+    const { items } = req.body;
 
     const doc = await prisma.operationDocument.findUnique({ where: { id } });
     if (!doc) {
@@ -289,8 +288,8 @@ router.put('/:id/items', authenticate, async (req: AuthRequest, res: Response): 
 // Action transitions: 'pick', 'pack', 'validate', 'cancel'
 router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    const { action } = req.body; // 'pick', 'pack', 'validate', 'cancel'
+    const id = String(req.params.id);
+    const { action } = req.body;
 
     const doc = await prisma.operationDocument.findUnique({
       where: { id },
@@ -327,7 +326,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
         return;
       }
 
-      // Check availability before picking
       for (const item of doc.items) {
         const quant = await prisma.stockQuant.findUnique({
           where: {
@@ -353,7 +351,7 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
 
       const updated = await prisma.operationDocument.update({
         where: { id },
-        data: { status: 'WAITING' }, // Waiting for packaging
+        data: { status: 'WAITING' },
         include: { items: { include: { product: true } } },
       });
 
@@ -378,7 +376,7 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
 
       const updated = await prisma.operationDocument.update({
         where: { id },
-        data: { status: 'READY' }, // Ready for validation / shipping
+        data: { status: 'READY' },
         include: { items: { include: { product: true } } },
       });
 
@@ -399,7 +397,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
 
           // Case 1: RECEIPT (Vendor -> Destination Location)
           if (doc.type === 'RECEIPT') {
-            // Increment stock in destination location
             await tx.stockQuant.upsert({
               where: {
                 productId_locationId: {
@@ -415,7 +412,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
               },
             });
 
-            // Log double entry stock move
             await tx.stockMove.create({
               data: {
                 documentId: doc.id,
@@ -452,7 +448,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
               );
             }
 
-            // Decrement from source
             await tx.stockQuant.update({
               where: {
                 productId_locationId: {
@@ -463,7 +458,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
               data: { quantity: { decrement: transferQty } },
             });
 
-            // Log double entry move
             await tx.stockMove.create({
               data: {
                 documentId: doc.id,
@@ -500,7 +494,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
               );
             }
 
-            // Decrement source
             await tx.stockQuant.update({
               where: {
                 productId_locationId: {
@@ -511,7 +504,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
               data: { quantity: { decrement: transferQty } },
             });
 
-            // Increment destination
             await tx.stockQuant.upsert({
               where: {
                 productId_locationId: {
@@ -527,7 +519,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
               },
             });
 
-            // Log ledger move
             await tx.stockMove.create({
               data: {
                 documentId: doc.id,
@@ -548,8 +539,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
 
           // Case 4: STOCK ADJUSTMENT
           else if (doc.type === 'ADJUSTMENT') {
-            // transferQty represents the delta (can be positive or negative)
-            // Or counted quantity passed directly
             const targetLocId = doc.sourceLocationId!;
             const quant = await tx.stockQuant.findUnique({
               where: {
@@ -564,7 +553,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
             const countedQty = item.requestedQty;
             const delta = countedQty - recordedQty;
 
-            // Set new balance
             await tx.stockQuant.upsert({
               where: {
                 productId_locationId: {
@@ -580,8 +568,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
               },
             });
 
-            // If delta > 0: stock gain (Inventory Loss -> Location)
-            // If delta < 0: stock loss (Location -> Inventory Loss)
             const srcId = delta >= 0 ? lossLoc.id : targetLocId;
             const dstId = delta >= 0 ? targetLocId : lossLoc.id;
 
@@ -604,7 +590,6 @@ router.post('/:id/action', authenticate, async (req: AuthRequest, res: Response)
           }
         }
 
-        // Mark document as DONE
         await tx.operationDocument.update({
           where: { id: doc.id },
           data: {

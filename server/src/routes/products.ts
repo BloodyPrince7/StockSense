@@ -216,7 +216,7 @@ router.post('/', authenticate, requireRole(['INVENTORY_MANAGER']), async (req: A
 // Update product
 router.put('/:id', authenticate, requireRole(['INVENTORY_MANAGER']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { name, sku, categoryId, uom, costPrice, minStockThreshold, reorderQty } = req.body;
 
     const updated = await prisma.product.update({
@@ -243,7 +243,7 @@ router.put('/:id', authenticate, requireRole(['INVENTORY_MANAGER']), async (req:
 // Get stock availability per location for a specific product
 router.get('/:id/stock-locations', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const quants = await prisma.stockQuant.findMany({
       where: {
         productId: id,
